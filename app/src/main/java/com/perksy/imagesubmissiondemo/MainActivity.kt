@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +53,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionRequired
 import com.google.accompanist.permissions.rememberPermissionState
+import com.perksy.imagesubmissiondemo.ImageUri.latestTmpUri
 import com.perksy.imagesubmissiondemo.ui.theme.ImageSubmissionDemoTheme
 import java.io.File
 import java.util.concurrent.Executors
@@ -77,8 +80,161 @@ class MainActivity : ComponentActivity() {
 //                    CameraPermissionUI()
 
                     CameraPreview()
+
+                    //ImageSubmissionDemo()
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ImageSubmissionDemo() {
+
+    var switchFlag by remember {
+        mutableStateOf(false)
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var galleryUri by remember {
+        mutableStateOf<Uri?>(null)
+    }
+
+    var cameraUri by remember {
+        mutableStateOf<Uri?>(null)
+    }
+
+    val context = LocalContext.current
+
+    val bitmap = remember {
+        mutableStateOf<Bitmap?>(null)
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract =
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        galleryUri = uri
+        switchFlag = true
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract =
+        ActivityResultContracts.TakePicture()
+    ) { isSuccess ->
+        if (isSuccess) {
+            cameraUri = latestTmpUri
+            switchFlag = false
+        }
+    }
+
+    Column(
+        verticalArrangement = Arrangement.Bottom,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f, false)) {
+
+            if (switchFlag) {
+                GalleryBitmap(galleryUri, bitmap, context)
+            } else {
+                CameraBitmap(cameraUri, bitmap, context)
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp, bottom = 12.dp)
+            ) {
+                Button(onClick = {
+                    lifecycleOwner.lifecycleScope.launchWhenStarted {
+                        getTmpFileUri(context).let { uri ->
+                            latestTmpUri = uri
+                            cameraLauncher.launch(uri)
+                        }
+                    }
+                }) {
+                    Text(text = "Take Picture")
+                }
+
+                Button(onClick = {
+                    galleryLauncher.launch("image/*")
+                }) {
+                    Text(text = "Photo Library")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CameraBitmap(
+    cameraUri: Uri?,
+    bitmap: MutableState<Bitmap?>,
+    context: Context
+) {
+    cameraUri?.let {
+        if (Build.VERSION.SDK_INT < 28) {
+            bitmap.value = MediaStore.Images
+                .Media.getBitmap(context.contentResolver, it)
+
+        } else {
+            val source = ImageDecoder
+                .createSource(context.contentResolver, it)
+            bitmap.value = ImageDecoder.decodeBitmap(source)
+        }
+
+        bitmap.value?.let { btm ->
+            AndroidView(
+                factory = { context ->
+                    ImageView(context).apply {
+                        id = R.id.image_preview
+                        setImageBitmap(btm)
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        adjustViewBounds = true
+                    }
+                })
+        }
+    }
+}
+
+private fun getTmpFileUri(context: Context): Uri {
+    val tmpFile = File.createTempFile("tmp_image_file", ".jpeg").apply {
+        createNewFile()
+        deleteOnExit()
+    }
+    return FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.provider", tmpFile)
+}
+
+@Composable
+private fun GalleryBitmap(
+    imageUri: Uri?,
+    bitmap: MutableState<Bitmap?>,
+    context: Context
+) {
+    imageUri?.let {
+        if (Build.VERSION.SDK_INT < 28) {
+            bitmap.value = MediaStore.Images
+                .Media.getBitmap(context.contentResolver, it)
+
+        } else {
+            val source = ImageDecoder
+                .createSource(context.contentResolver, it)
+            bitmap.value = ImageDecoder.decodeBitmap(source)
+        }
+
+        bitmap.value?.let { btm ->
+            Image(
+                bitmap = btm.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.aspectRatio(1f)
+            )
         }
     }
 }
@@ -234,6 +390,13 @@ fun Gallery() {
                     contentDescription = null,
                     modifier = Modifier.size(400.dp)
                 )
+                /*AndroidView(
+                    factory = { context ->
+                        ImageView(context).apply {
+                            id = R.id.image_preview
+                            setImageBitmap(btm)
+                        }
+                    })*/
             }
         }
     }
@@ -248,6 +411,8 @@ fun CameraPreview() {
         mutableStateOf<Uri?>(null)
     }
 
+    var tempUri: Uri? = null
+
     val context = LocalContext.current
 
     val bitmap = remember {
@@ -258,7 +423,9 @@ fun CameraPreview() {
         contract =
         ActivityResultContracts.TakePicture()
     ) { isSuccess ->
-        Log.d("TAG", "CameraPreview: $isSuccess")
+        if (isSuccess) {
+            imageUri = tempUri
+        }
     }
 
     Column {
@@ -266,7 +433,7 @@ fun CameraPreview() {
             //launcher.launch("image/*")
             lifecycleOwner.lifecycleScope.launchWhenStarted {
                 getTmpFileUri(context).let { uri ->
-                    imageUri = uri
+                    tempUri = uri
                     launcher.launch(uri)
                 }
             }
@@ -288,25 +455,22 @@ fun CameraPreview() {
             }
 
             bitmap.value?.let { btm ->
-                Image(
+                AndroidView(
+                    factory = { context ->
+                        ImageView(context).apply {
+                            id = R.id.image_preview
+                            setImageBitmap(btm)
+                        }
+                    })
+                /*Image(
                     bitmap = btm.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier.size(400.dp)
-                )
+                )*/
             }
         }
     }
 }
-
-private fun getTmpFileUri(context: Context): Uri {
-    val tmpFile = File.createTempFile("tmp_image_file", ".png", context.cacheDir).apply {
-        createNewFile()
-        deleteOnExit()
-    }
-
-    return FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.provider", tmpFile)
-}
-
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
