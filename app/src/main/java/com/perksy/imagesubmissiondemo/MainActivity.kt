@@ -37,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -79,9 +80,9 @@ class MainActivity : ComponentActivity() {
 
 //                    CameraPermissionUI()
 
-                    CameraPreview()
+//                    CameraPreview()
 
-                    //ImageSubmissionDemo()
+                    ImageSubmissionDemo()
                 }
             }
         }
@@ -190,21 +191,18 @@ private fun CameraBitmap(
         }
 
         bitmap.value?.let { btm ->
-            AndroidView(
-                factory = { context ->
-                    ImageView(context).apply {
-                        id = R.id.image_preview
-                        setImageBitmap(btm)
-                        scaleType = ImageView.ScaleType.CENTER_CROP
-                        adjustViewBounds = true
-                    }
-                })
+            Image(
+                bitmap = btm.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.aspectRatio(1f)
+            )
         }
     }
 }
 
 private fun getTmpFileUri(context: Context): Uri {
-    val tmpFile = File.createTempFile("tmp_image_file", ".jpeg").apply {
+    val tmpFile = File.createTempFile("tmp_image_file_", ".jpeg").apply {
         createNewFile()
         deleteOnExit()
     }
@@ -411,7 +409,9 @@ fun CameraPreview() {
         mutableStateOf<Uri?>(null)
     }
 
-    var tempUri: Uri? = null
+    var tempUri by remember {
+        mutableStateOf<Uri?>(null)
+    }
 
     val context = LocalContext.current
 
@@ -424,8 +424,10 @@ fun CameraPreview() {
         ActivityResultContracts.TakePicture()
     ) { isSuccess ->
         if (isSuccess) {
-            imageUri = tempUri
+            imageUri = latestTmpUri
+            Log.d("TAG", "CameraPreview: $imageUri")
         }
+        Log.d("TAG", "CameraPreview: $imageUri")
     }
 
     Column {
@@ -433,7 +435,7 @@ fun CameraPreview() {
             //launcher.launch("image/*")
             lifecycleOwner.lifecycleScope.launchWhenStarted {
                 getTmpFileUri(context).let { uri ->
-                    tempUri = uri
+                    latestTmpUri = uri
                     launcher.launch(uri)
                 }
             }
@@ -455,18 +457,24 @@ fun CameraPreview() {
             }
 
             bitmap.value?.let { btm ->
-                AndroidView(
+                /*AndroidView(
                     factory = { context ->
                         ImageView(context).apply {
                             id = R.id.image_preview
                             setImageBitmap(btm)
                         }
-                    })
-                /*Image(
+                    })*/
+                Image(
                     bitmap = btm.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier.size(400.dp)
-                )*/
+                )
+            }
+        }
+        DisposableEffect(Unit) {
+            bitmap.value = null
+            onDispose {
+                bitmap.value = null
             }
         }
     }
