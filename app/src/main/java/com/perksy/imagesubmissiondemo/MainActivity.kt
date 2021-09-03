@@ -12,12 +12,14 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
+import android.widget.DatePicker
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
@@ -36,8 +38,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -57,9 +61,12 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.perksy.imagesubmissiondemo.ImageUri.latestTmpUri
 import com.perksy.imagesubmissiondemo.ui.theme.ImageSubmissionDemoTheme
 import java.io.File
+import java.util.*
 import java.util.concurrent.Executors
+import kotlin.properties.Delegates
 
 class MainActivity : ComponentActivity() {
+    @RequiresApi(Build.VERSION_CODES.O)
     @ExperimentalPermissionsApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,11 +89,70 @@ class MainActivity : ComponentActivity() {
 
 //                    CameraPreview()
 
-                    ImageSubmissionDemo()
+//                    ImageSubmissionDemo()
+
+                    DatePickerDemo()
+
                 }
             }
         }
     }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun DatePickerDemo() {
+
+    var c = Calendar.getInstance()
+    var year = c.get(Calendar.YEAR)
+    var month = c.get(Calendar.MONTH)
+    var day = c.get(Calendar.DAY_OF_MONTH)
+
+    Column(
+        modifier = Modifier
+            .background(
+                color = Color.Red,
+            )
+            .padding(12.dp)
+            .fillMaxSize(),
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        Card(
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AndroidView(
+                    factory = { context ->
+                        DatePicker(context).apply {
+                            id = R.id.datePicker
+
+                            this.setOnDateChangedListener { view, year, monthOfYear, dayOfMonth ->
+                                day = dayOfMonth
+                            }
+                        }
+                    },
+                    modifier = Modifier.padding(16.dp)
+                )
+                Button(
+                    onClick = {
+                        Log.d("TAG", "DatePickerDemo: $day")
+                    },
+                    modifier = Modifier
+                        .height(50.dp)
+                        .fillMaxWidth(),
+                    shape = RectangleShape,
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0XFF38508c))
+                ) {
+                    Text(text = "Done",
+                        color = Color.White)
+                }
+            }
+        }
+    }
+
+
 }
 
 @Composable
